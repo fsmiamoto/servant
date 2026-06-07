@@ -1,5 +1,7 @@
 # Servant
 
+<img src="./docs/logo.png/" width="300">
+
 Always-on static file server for remote hosts.
 
 ## Why
