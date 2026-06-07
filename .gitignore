@@ -5,3 +5,5 @@ target/
 
 .servant/
 plans
+.pi/extension/node_modules/
+.pi/extension/dist/

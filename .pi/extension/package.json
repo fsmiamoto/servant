@@ -1,0 +1,11 @@
+{
+  "name": "servant-pi-extension",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Pi extension wrapping the servant CLI for sharing local files over HTTP.",
+  "main": "./index.ts",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}
