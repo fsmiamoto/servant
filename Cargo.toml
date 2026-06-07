@@ -1,0 +1,53 @@
+[package]
+name = "servant"
+version = "0.1.0"
+edition = "2021"
+description = "Always-running per-user static file server for remote hosts."
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "servant"
+path = "src/main.rs"
+
+[lib]
+name = "servant"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1"
+thiserror = "1"
+clap = { version = "4", features = ["derive", "env"] }
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "matched-path"] }
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["fs", "cors", "set-header", "trace"] }
+hyper = { version = "1", features = ["http1", "server", "client"] }
+hyper-util = { version = "0.1", features = ["server-auto", "tokio", "client", "client-legacy", "http1"] }
+http-body-util = "0.1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+directories = "5"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-journald = "0.3"
+humantime = "2"
+humantime-serde = "1"
+nix = { version = "0.29", features = ["signal", "fs", "user"] }
+fs2 = "0.4"
+hostname = "0.4"
+bytes = "1"
+mime_guess = "2"
+percent-encoding = "2"
+once_cell = "1"
+
+[dev-dependencies]
+tempfile = "3"
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
