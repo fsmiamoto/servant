@@ -51,7 +51,7 @@ impl ControlClient {
                     || e.kind() == io::ErrorKind::NotFound =>
             {
                 return Err(ClientError::Unreachable(format!(
-                    "no socket at {}\nhint: run `servant start` or `servant install`",
+                    "no socket at {}\nhint: run `servant service start` or `servant service install`",
                     self.socket.display()
                 ))
                 .into());

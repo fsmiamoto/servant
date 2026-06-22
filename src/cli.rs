@@ -43,23 +43,30 @@ pub enum Command {
     Ls(JsonOnly),
     /// Remove a registration by id, URL, or source path.
     Rm(RmArgs),
-    /// Install the systemd --user service.
-    Install(InstallArgs),
-    /// Stop and remove the systemd --user service.
-    Uninstall,
-    /// Show daemon health/status.
-    Status(JsonOnly),
-    /// Tail daemon logs (`journalctl --user -u servant`).
-    Logs(LogsArgs),
-    /// Start the daemon via systemd.
-    Start,
-    /// Stop the daemon via systemd.
-    Stop,
-    /// Restart the daemon via systemd.
-    Restart,
+    /// Manage the daemon/systemd service.
+    #[command(subcommand)]
+    Service(ServiceCommand),
     /// Internal: run the daemon in the foreground.
     #[command(hide = true)]
     Daemon,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ServiceCommand {
+    /// Install the systemd service.
+    Install(InstallArgs),
+    /// Stop and remove the systemd service.
+    Uninstall(LifecycleArgs),
+    /// Show daemon health/status.
+    Status(JsonOnly),
+    /// Tail daemon logs.
+    Logs(LogsArgs),
+    /// Start the daemon via systemd.
+    Start(LifecycleArgs),
+    /// Stop the daemon via systemd.
+    Stop(LifecycleArgs),
+    /// Restart the daemon via systemd.
+    Restart(LifecycleArgs),
 }
 
 #[derive(Args, Debug)]
@@ -95,8 +102,24 @@ pub struct InstallArgs {
     pub port: Option<u16>,
     #[arg(long)]
     pub bind: Option<String>,
+    /// Install a root-owned system service that runs as the target user.
+    #[arg(long)]
+    pub system: bool,
+    /// Target user for --system installs; defaults to SUDO_USER.
+    #[arg(long, requires = "system")]
+    pub system_user: Option<String>,
     #[arg(long)]
     pub json: bool,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct LifecycleArgs {
+    /// Manage the root-owned system service instead of the systemd --user service.
+    #[arg(long)]
+    pub system: bool,
+    /// Target user for --system lifecycle commands; defaults to SUDO_USER.
+    #[arg(long, requires = "system")]
+    pub system_user: Option<String>,
 }
 
 #[derive(Args, Debug)]
@@ -105,6 +128,12 @@ pub struct LogsArgs {
     pub follow: bool,
     #[arg(short = 'n', long)]
     pub lines: Option<u32>,
+    /// Show logs for the root-owned system service.
+    #[arg(long)]
+    pub system: bool,
+    /// Target user for --system logs; defaults to SUDO_USER.
+    #[arg(long, requires = "system")]
+    pub system_user: Option<String>,
 }
 
 fn parse_ttl(s: &str) -> Result<Ttl, String> {
@@ -132,9 +161,10 @@ pub fn run() -> i32 {
 
     let cmd_json = match &cli.command {
         Command::Serve(a) => a.json,
-        Command::Ls(a) | Command::Status(a) => a.json,
+        Command::Ls(a) => a.json,
         Command::Rm(a) => a.json,
-        Command::Install(a) => a.json,
+        Command::Service(ServiceCommand::Install(a)) => a.json,
+        Command::Service(ServiceCommand::Status(a)) => a.json,
         _ => false,
     };
     let mode = if cli.json || cmd_json || env_json() {
@@ -143,23 +173,32 @@ pub fn run() -> i32 {
         OutputMode::Human
     };
 
-    let cfg = match Config::load() {
-        Ok(c) => c,
-        Err(e) => {
-            crate::output::print_error(mode, &e.to_string(), EXIT_USER_ERROR);
-            return EXIT_USER_ERROR;
-        }
-    };
-
     let result = match cli.command {
-        Command::Daemon => crate::daemon::run_daemon(cfg).map(|_| EXIT_OK),
-        Command::Install(args) => crate::install::run_install(cfg, args, mode),
-        Command::Uninstall => crate::lifecycle::uninstall(mode),
-        Command::Start => crate::lifecycle::start(mode),
-        Command::Stop => crate::lifecycle::stop(mode),
-        Command::Restart => crate::lifecycle::restart(mode),
-        Command::Logs(a) => crate::lifecycle::logs(a),
-        other => run_async_cli(other, cfg, mode),
+        Command::Service(ServiceCommand::Install(args)) => crate::install::run_install(args, mode),
+        command => {
+            let cfg = match Config::load() {
+                Ok(c) => c,
+                Err(e) => {
+                    crate::output::print_error(mode, &e.to_string(), EXIT_USER_ERROR);
+                    return EXIT_USER_ERROR;
+                }
+            };
+            match command {
+                Command::Daemon => crate::daemon::run_daemon(cfg).map(|_| EXIT_OK),
+                Command::Service(service) => match service {
+                    ServiceCommand::Install(_) => {
+                        unreachable!("service install handled before config load")
+                    }
+                    ServiceCommand::Uninstall(a) => crate::lifecycle::uninstall(a, mode),
+                    ServiceCommand::Start(a) => crate::lifecycle::start(a, mode),
+                    ServiceCommand::Stop(a) => crate::lifecycle::stop(a, mode),
+                    ServiceCommand::Restart(a) => crate::lifecycle::restart(a, mode),
+                    ServiceCommand::Logs(a) => crate::lifecycle::logs(a),
+                    ServiceCommand::Status(_) => run_status_cli(cfg, mode),
+                },
+                other => run_async_cli(other, cfg, mode),
+            }
+        }
     };
 
     match result {
@@ -186,8 +225,14 @@ fn run_async_cli(cmd: Command, cfg: Config, mode: OutputMode) -> anyhow::Result<
             Command::Serve(a) => crate::client::handle_serve(cfg, a, mode).await,
             Command::Ls(_) => crate::client::handle_ls(cfg, mode).await,
             Command::Rm(a) => crate::client::handle_rm(cfg, a, mode).await,
-            Command::Status(_) => crate::client::handle_status(cfg, mode).await,
             _ => unreachable!("dispatched synchronously"),
         }
     })
+}
+
+fn run_status_cli(cfg: Config, mode: OutputMode) -> anyhow::Result<i32> {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    rt.block_on(crate::client::handle_status(cfg, mode))
 }

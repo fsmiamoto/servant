@@ -16,13 +16,24 @@ CLI that agents can use for me.
 
 ## Install
 
-Servant runs as a per-user **systemd** service, so you'll need Linux with
-`systemd --user` available.
+Install the binary first, then install the per-user **systemd** service:
 
 ```
-cargo build --release
-./target/release/servant install     # writes ~/.config/systemd/user/servant.service
-servant status                       # should say "daemon: ok"
+cargo install --path .
+servant service install              # writes ~/.config/systemd/user/servant.service
+servant service status               # should say "daemon: ok"
+```
+
+On minimal hosts where `systemctl --user` / `user@.service` is unavailable,
+install the explicit system-service fallback instead. The unit is root-owned,
+but the daemon still runs as your user:
+
+```
+sudo servant service install --system
+# lifecycle commands use the same explicit mode:
+sudo servant service restart --system
+sudo servant service uninstall --system
+servant service logs --system --system-user "$USER"
 ```
 
 That's it — the daemon is now running and will keep running across reboots.

@@ -61,8 +61,8 @@ expires.
 
 If a tool/CLI call returns "servant daemon unreachable" (exit 2):
 
-    servant status     # is it running?
-    servant start      # start the user service
+    servant service status     # is it running?
+    servant service start      # start the user service
 
 ## Example
 

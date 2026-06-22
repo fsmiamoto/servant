@@ -22,4 +22,4 @@ test:
     cargo test
 
 install: build-release
-    ./target/release/servant install
+    ./target/release/servant service install
